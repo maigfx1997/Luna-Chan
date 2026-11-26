@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>لونا تشأن — محول الروايات إلى كتب إلكترونية</title>
+    <!-- PWA Manifest المدمج لدعم استقبال المشاركة (Web Share Target) -->
+    <link rel="manifest" id="manifest-placeholder">
+    
+    <!-- المكتبات الخارجية عبر CDN للتشغيل الفوري بدون بناء معقد -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Cairo', 'Quicksand', 'sans-serif'],
+                    },
+                    colors: {
+                        pinky: {
+                            50: '#fff0f6',
+                            100: '#ffdeeb',
+                            200: '#fcc2d7',
+                            300: '#faa2c1',
+                            400: '#f783ac',
+                            500: '#f06595',
+                            600: '#e64980',
+                            700: '#d6336c',
+                            800: '#c2255c',
+                            900: '#a61e4d',
+                        },
+                        darkbg: '#161115',
+                        darkcard: '#221a20',
+                        darkborder: '#382a34'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        /* تخصيص شريط التمرير الوردي */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #faa2c1; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #a61e4d; }
+        
+        /* تنسيق محرر الفصول لدعم الصور والنصوص */
+        .chapter-editor img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 0.75rem;
+            margin: 0.75rem auto;
+            display: block;
+            box-shadow: 0 4px 12px rgba(240, 101, 149, 0.15);
+        }
+    </style>
+</head>
+<body class="bg-pinky-50 text-gray-800 dark:bg-darkbg dark:text-pinky-50 min-h-screen flex flex-col">
+
+    <!-- الشريط العلوي (Header) -->
+    <header class="sticky top-0 z-40 backdrop-blur-md bg-white/80 dark:bg-darkcard/85 border-b border-pinky-200 dark:border-darkborder px-4 py-3 shadow-sm">
+        <div class="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            <!-- الشعار -->
+            <div class="flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pinky-500 to-pinky-300 flex items-center justify-center text-white font-extrabold text-xl shadow-md shadow-pinky-500/30">
+                    🎀
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-lg text-pinky-700 dark:text-pinky-300 leading-tight" data-i18n="appName">لونا تشأن</h1>
+                    <p class="text-xs text-pinky-500 dark:text-pinky-400" data-i18n="appTagline">صانع الكتب الإلكترونية</p>
+                </div>
+            </div>
+
+            <!-- أزرار التحكم: السجل، اللغة، الوضع الليلي -->
+            <div class="flex items-center gap-2">
+                <button onclick="toggleHistoryModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-pinky-100 hover:bg-pinky-200 dark:bg-darkborder dark:hover:bg-pinky-900/40 text-pinky-700 dark:text-pinky-200 text-sm font-semibold transition">
+                    <span>📚</span>
+                    <span data-i18n="historyBtn">السجل</span>
+                    <span id="history-count" class="bg-pinky-500 text-white text-xs px-1.5 py-0.2 rounded-full">0</span>
+                </button>
+
+                <!-- مبدل اللغات -->
+                <div class="flex bg-pinky-100 dark:bg-darkborder p-1 rounded-xl text-xs font-bold">
+                    <button onclick="setLanguage('ar')" id="lang-ar" class="px-2 py-1 rounded-lg transition">عربي</button>
+                    <button onclick="setLanguage('en')" id="lang-en" class="px-2 py-1 rounded-lg transition">EN</button>
+                    <button onclick="setLanguage('fr')" id="lang-fr" class="px-2 py-1 rounded-lg transition">FR</button>
+                </div>
+
+                <!-- زر الوضع الليلي/النهاري -->
+                <button onclick="toggleDarkMode()" id="theme-toggle" class="w-9 h-9 rounded-xl bg-pinky-100 hover:bg-pinky-200 dark:bg-darkborder dark:hover:bg-pinky-900/40 flex items-center justify-center text-lg transition" title="تبديل المظهر">
+                    🌙
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- المحتوى الرئيسي -->
+    <main class="flex-1 max-w-5xl w-full mx-auto px-4 py-6 space-y-6">
+
+        <!-- قسم إدخال الرابط والاستيراد -->
+        <section class="bg-white dark:bg-darkcard rounded-3xl p-6 shadow-lg shadow-pinky-200/40 dark:shadow-none border border-pinky-100 dark:border-darkborder">
+            <div class="text-center max-w-2xl mx-auto mb-5">
+                <span class="inline-block px-3 py-1 rounded-full bg-pinky-100 dark:bg-pinky-900/40 text-pinky-600 dark:text-pinky-300 text-xs font-bold mb-2" data-i18n="universalBadge">
+                    ✨ يدعم الاستيراد الذكي من مختلف المواقع والروابط بجميع اللغات
+                </span>
+                <h2 class="text-2xl font-extrabold text-gray-800 dark:text-white mb-1" data-i18n="heroTitle">حوّل قصتك المفضلة إلى كتاب أنيق</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="heroDesc">ألصق رابط الرواية أو شاركه مباشرة من متصفح هاتفك، عدّل التفاصيل، وحمّله فوراً.</p>
+            </div>
+
+            <!-- شريط الإدخال -->
+            <div class="flex flex-col sm:flex-row gap-2.5 max-w-3xl mx-auto">
+                <div class="relative flex-1 flex items-center">
+                    <input type="url" id="novel-url" placeholder="https://..." 
+                        class="w-full pl-28 pr-4 py-3.5 rounded-2xl bg-pinky-50/70 dark:bg-darkbg border-2 border-pinky-200 dark:border-darkborder focus:border-pinky-500 focus:outline-none text-sm transition" dir="ltr">
+                    
+                    <!-- زر اللصق التلقائي بضغطة واحدة -->
+                    <button onclick="autoPasteUrl()" type="button" class="absolute left-2 px-3 py-1.5 rounded-xl bg-pinky-200/80 hover:bg-pinky-300 dark:bg-pinky-900/60 dark:hover:bg-pinky-800 text-pinky-800 dark:text-pinky-100 text-xs font-bold flex items-center gap-1 transition">
+                        <span>📋</span>
+                        <span data-i18n="autoPasteBtn">لصق تلقائي</span>
+                    </button>
+                </div>
+
+                <button onclick="fetchNovelFromUrl()" id="fetch-btn" class="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-pinky-500 to-pinky-600 hover:from-pinky-600 hover:to-pinky-700 text-white font-bold text-sm shadow-md shadow-pinky-500/30 flex items-center justify-center gap-2 transition active:scale-95">
+                    <span>🪄</span>
+                    <span data-i18n="fetchBtn">جلب الرواية</span>
+                </button>
+            </div>
+
+            <!-- خيارات إضافية سريعة (إنشاء يدوي / تجريبي) -->
+            <div class="mt-3 text-center">
+                <button onclick="loadSampleNovel()" class="text-xs text-pinky-500 hover:text-pinky-700 dark:text-pinky-400 underline font-semibold" data-i18n="loadSampleBtn">
+                    أو جرّب بقالب رواية جاهز للمعاينة والتعديل الفوري
+                </button>
+            </div>
+
+            <!-- شريط حالة الجلب -->
+            <div id="status-bar" class="hidden mt-4 max-w-3xl mx-auto p-3.5 rounded-2xl bg-pinky-100/70 dark:bg-darkbg border border-pinky-200 dark:border-darkborder text-sm flex items-center gap-3">
+                <div class="animate-spin text-xl">🌸</div>
+                <div class="flex-1">
+                    <p id="status-text" class="font-bold text-pinky-700 dark:text-pinky-300">جاري تحليل الرابط...</p>
+                    <div class="w-full bg-pinky-200 dark:bg-darkborder h-1.5 rounded-full mt-1.5 overflow-hidden">
+                        <div id="status-progress" class="bg-pinky-500 h-full w-1/3 transition-all duration-300"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- مساحة العمل: التعديل والمعاينة والتصدير (تظهر بعد جلب البيانات) -->
+        <section id="workspace" class="hidden space-y-6 animate-fade-in">
+            
+            <!-- بطاقة بيانات الكتاب والغلاف -->
+            <div class="bg-white dark:bg-darkcard rounded-3xl p-6 shadow-lg shadow-pinky-200/30 dark:shadow-none border border-pinky-100 dark:border-darkborder">
+                <div class="flex items-center justify-between border-b border-pinky-100 dark:border-darkborder pb-3 mb-5">
+                    <h3 class="font-extrabold text-lg text-pinky-700 dark:text-pinky-300 flex items-center gap-2">
+                        <span>📖</span>
+                        <span data-i18n="metadataTitle">بيانات الكتاب والغلاف</span>
+                    </h3>
+                    <span class="text-xs text-gray-400" data-i18n="editHint">جميع الحقول قابلة للتعديل المباشر</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- عمود الغلاف -->
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="relative w-44 h-64 rounded-2xl overflow-hidden shadow-md border-2 border-pinky-200 dark:border-darkborder bg-pinky-50 dark:bg-darkbg group">
+                            <img id="cover-preview" src="" alt="Cover" class="w-full h-full object-cover">
+                            <label for="cover-upload" class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white text-xs font-bold cursor-pointer transition">
+                                <span class="text-2xl mb-1">🖼️</span>
+                                <span data-i18n="changeCover">تغيير الغلاف</span>
+                            </label>
+                            <input type="file" id="cover-upload" accept="image/*" class="hidden" onchange="handleCoverUpload(event)">
+                        </div>
+                        <button onclick="document.getElementById('cover-upload').click()" class="text-xs px-3 py-1.5 rounded-xl bg-pinky-100 dark:bg-darkborder text-pinky-700 dark:text-pinky-200 font-bold hover:bg-pinky-200 transition" data-i18n="uploadCoverBtn">
+                            رفع صورة غلاف جديدة
+                        </button>
+                    </div>
+
+                    <!-- عمود النصوص (العنوان، الكاتب، الوصف) -->
+                    <div class="md:col-span-2 space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-pinky-600 dark:text-pinky-300 mb-1" data-i18n="bookTitleLabel">عنوان الرواية</label>
+                            <input type="text" id="edit-title" class="w-full px-4 py-2.5 rounded-xl bg-pinky-50/50 dark:bg-darkbg border border-pinky-200 dark:border-darkborder focus:border-pinky-500 focus:outline-none font-bold">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-pinky-600 dark:text-pinky-300 mb-1" data-i18n="authorLabel">اسم الكاتب</label>
+                            <input type="text" id="edit-author" class="w-full px-4 py-2.5 rounded-xl bg-pinky-50/50 dark:bg-darkbg border border-pinky-200 dark:border-darkborder focus:border-pinky-500 focus:outline-none">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-bold text-pinky-600 dark:text-pinky-300" data-i18n="descLabel">الوصف / النبذة</label>
+                                <button onclick="clearDescription()" class="text-xs text-rose-500 hover:underline font-semibold" data-i18n="deleteDescBtn">🗑️ حذف الوصف</button>
+                            </div>
+                            <textarea id="edit-desc" rows="4" class="w-full px-4 py-2.5 rounded-xl bg-pinky-50/50 dark:bg-darkbg border border-pinky-200 dark:border-darkborder focus:border-pinky-500 focus:outline-none text-sm leading-relaxed"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- بطاقة إدارة الفصول والصور الداخلية -->
+            <div class="bg-white dark:bg-darkcard rounded-3xl p-6 shadow-lg shadow-pinky-200/30 dark:shadow-none border border-pinky-100 dark:border-darkborder">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-pinky-100 dark:border-darkborder pb-3 mb-4">
+                    <h3 class="font-extrabold text-lg text-pinky-700 dark:text-pinky-300 flex items-center gap-2">
+                        <span>📑</span>
+                        <span data-i18n="chaptersTitle">الفصول والمحتوى</span>
+                        <span id="chapters-badge" class="text-xs bg-pinky-500 text-white px-2.5 py-0.5 rounded-full">0</span>
+                    </h3>
+
+                    <div class="flex items-center gap-2">
+                        <button onclick="addNewChapter()" class="px-3 py-1.5 rounded-xl bg-pinky-100 hover:bg-pinky-200 dark:bg-darkborder text-pinky-700 dark:text-pinky-200 text-xs font-bold transition" data-i18n="addChapterBtn">
+                            + إضافة فصل جديد
+                        </button>
+                        <button onclick="openPreviewModal()" class="px-4 py-1.5 rounded-xl bg-pinky-500 hover:bg-pinky-600 text-white text-xs font-bold shadow-sm transition flex items-center gap-1">
+                            <span>👁️</span>
+                            <span data-i18n="previewBookBtn">معاينة الكتاب</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- قائمة الفصول القابلة للتعديل والحذف -->
+                <div id="chapters-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                    <!-- يتم توليد بطاقات الفصول هنا ديناميكياً -->
+                </div>
+            </div>
+
+            <!-- شريط التصدير والتحميل النهائي (صيغ متعددة للكتب الإلكترونية) -->
+            <div class="bg-gradient-to-r from-pinky-500 to-pinky-600 rounded-3xl p-6 text-white shadow-xl shadow-pinky-500/25 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div>
+                    <h3 class="font-extrabold text-xl" data-i18n="exportTitle">جاهز لتحميل كتابك الإلكتروني!</h3>
+                    <p class="text-pinky-100 text-xs mt-0.5" data-i18n="exportDesc">اختر الصيغة المناسبة لجهازك أو قارئك، وسيتم حفظ نسخة تلقائية في السجل.</p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-center">
+                    <button onclick="exportBook('epub')" class="px-4 py-2.5 rounded-2xl bg-white text-pinky-600 hover:bg-pinky-50 font-extrabold text-sm shadow-md transition active:scale-95 flex items-center justify-center gap-1.5">
+                        <span>📘</span> EPUB
+                    </button>
+                    <button onclick="exportBook('pdf')" class="px-4 py-2.5 rounded-2xl bg-pinky-800/40 hover:bg-pinky-800/60 border border-white/30 text-white font-extrabold text-sm transition active:scale-95 flex items-center justify-center gap-1.5">
+                        <span>📕</span> PDF
+                    </button>
+                    <button onclick="exportBook('fb2')" class="px-4 py-2.5 rounded-2xl bg-pinky-800/40 hover:bg-pinky-800/60 border border-white/30 text-white font-extrabold text-sm transition active:scale-95 flex items-center justify-center gap-1.5">
+                        <span>📗</span> FB2
+                    </button>
+                    <button onclick="exportBook('html')" class="px-4 py-2.5 rounded-2xl bg-pinky-800/40 hover:bg-pinky-800/60 border border-white/30 text-white font-extrabold text-sm transition active:scale-95 flex items-center justify-center gap-1.5">
+                        <span>🌐</span> HTML
+                    </button>
+                    <button onclick="exportBook('md')" class="px-4 py-2.5 rounded-2xl bg-pinky-800/40 hover:bg-pinky-800/60 border border-white/30 text-white font-extrabold text-sm transition active:scale-95 flex items-center justify-center gap-1.5">
+                        <span>📝</span> MD
+                    </button>
+                    <button onclick="exportBook('rtf')" class="px-4 py-2.5 rounded-2xl bg-pinky-800/40 hover:bg-pinky-800/60 border border-white/30 text-white font-extrabold text-sm transition active:scale-95 flex items-center justify-center gap-1.5">
+                        <span>📃</span> RTF
+                    </button>
+                    <button onclick="exportBook('txt')" class="px-4 py-2.5 rounded-2xl bg-pinky-800/40 hover:bg-pinky-800/60 border border-white/30 text-white font-extrabold text-sm transition active:scale-95 flex items-center justify-center gap-1.5">
+                        <span>📄</span> TXT
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- نافذة المعاينة الكاملة للكتاب (Preview Modal) -->
+    <div id="preview-modal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-darkcard w-full max-w-3xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-pinky-200 dark:border-darkborder">
+            <div class="px-6 py-4 border-b border-pinky-100 dark:border-darkborder flex items-center justify-between bg-pinky-50/50 dark:bg-darkbg">
+                <h3 class="font-extrabold text-pinky-700 dark:text-pinky-300 flex items-center gap-2">
+                    <span>👁️</span>
+                    <span data-i18n="previewModalTitle">معاينة تنسيق الكتاب</span>
+                </h3>
+                <button onclick="closePreviewModal()" class="w-8 h-8 rounded-full bg-pinky-100 dark:bg-darkborder text-pinky-700 dark:text-pinky-200 font-bold hover:bg-pinky-200">✕</button>
+            </div>
+            
+            <div id="preview-content" class="p-6 overflow-y-auto space-y-8 text-gray-800 dark:text-gray-200 leading-loose">
+                <!-- محتوى المعاينة يولد هنا -->
+            </div>
+
+            <div class="px-6 py-3 border-t border-pinky-100 dark:border-darkborder bg-pinky-50/50 dark:bg-darkbg flex justify-end gap-2">
+                <button onclick="closePreviewModal()" class="px-5 py-2 rounded-xl bg-pinky-500 text-white text-sm font-bold" data-i18n="closeBtn">إغلاق المعاينة</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة السجل (History Modal) -->
+    <div id="history-modal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-darkcard w-full max-w-2xl max-h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-pinky-200 dark:border-darkborder">
+            <div class="px-6 py-4 border-b border-pinky-100 dark:border-darkborder flex items-center justify-between bg-pinky-50/50 dark:bg-darkbg">
+                <h3 class="font-extrabold text-pinky-700 dark:text-pinky-300 flex items-center gap-2">
+                    <span>📚</span>
+                    <span data-i18n="historyModalTitle">سجل الروايات المحوّلة سابقاً</span>
+                </h3>
+                <div class="flex items-center gap-2">
+                    <button onclick="clearHistory()" class="text-xs text-rose-500 hover:underline font-bold" data-i18n="clearHistoryBtn">مسح السجل</button>
+                    <button onclick="toggleHistoryModal()" class="w-8 h-8 rounded-full bg-pinky-100 dark:bg-darkborder text-pinky-700 dark:text-pinky-200 font-bold">✕</button>
+                </div>
+            </div>
+            
+            <div id="history-list" class="p-5 overflow-y-auto space-y-3 flex-1">
+                <!-- عناصر السجل -->
+            </div>
+        </div>
+    </div>
+
+    <!-- حاوية مخفية لتوليد PDF -->
+    <div id="pdf-render-container" class="hidden"></div>
+
+    <script>
+        /* ==========================================================================
+           1. إعدادات PWA و Web Share Target لاستقبال الروابط من تطبيقات الهاتف
+           ========================================================================== */
+        (function setupWebShareTarget() {
+            const manifest = {
+                name: "لونا تشأن - محول الروايات",
+                short_name: "لونا تشأن",
+                start_url: window.location.pathname,
+                display: "standalone",
+                background_color: "#fff0f6",
+                theme_color: "#f06595",
+                share_target: {
+                    action: window.location.pathname,
+                    method: "GET",
+                    params: {
+                        title: "title",
+                        text: "text",
+                        url: "url"
+                    }
+                }
+            };
+            const stringManifest = JSON.stringify(manifest);
+            const blob = new Blob([stringManifest], {type: 'application/json'});
+            const manifestURL = URL.createObjectURL(blob);
+            document.getElementById('manifest-placeholder').setAttribute('href', manifestURL);
+        })();
+
+        /* ==========================================================================
+           2. نظام الترجمة ثلاثي اللغات (العربية، الإنجليزية، الفرنسية)
+           ========================================================================== */
+        const i18n = {
+            ar: {
+                appName: "لونا تشأن",
+                appTagline: "صانع الكتب الإلكترونية",
+                historyBtn: "السجل",
+                universalBadge: "✨ يدعم الاستيراد الذكي من مختلف المواقع والروابط بجميع اللغات",
+                heroTitle: "حوّل قصتك المفضلة إلى كتاب أنيق",
+                heroDesc: "ألصق رابط الرواية أو شاركه مباشرة من متصفح هاتفك، عدّل التفاصيل، وحمّله فوراً.",
+                autoPasteBtn: "لصق تلقائي",
+                fetchBtn: "جلب الرواية",
+                loadSampleBtn: "أو جرّب بقالب رواية جاهز للمعاينة والتعديل الفوري",
+                metadataTitle: "بيانات الكتاب والغلاف",
+                editHint: "جميع الحقول قابلة للتعديل المباشر",
+                changeCover: "تغيير الغلاف",
+                uploadCoverBtn: "رفع صورة غلاف جديدة",
+                bookTitleLabel: "عنوان الرواية",
+                authorLabel: "اسم الكاتب",
+                descLabel: "الوصف / النبذة",
+                deleteDescBtn: "🗑️ حذف الوصف",
+                chaptersTitle: "الفصول والمحتوى",
+                addChapterBtn: "+ إضافة فصل جديد",
+                previewBookBtn: "معاينة الكتاب",
+                exportTitle: "جاهز لتحميل كتابك الإلكتروني!",
+                exportDesc: "اختر الصيغة المناسبة لجهازك أو قارئك (EPUB، PDF، FB2، HTML، MD، RTF، TXT).",
+                previewModalTitle: "معاينة تنسيق الكتاب",
+                closeBtn: "إغلاق المعاينة",
+                historyModalTitle: "سجل الروايات المحوّلة سابقاً",
+                clearHistoryBtn: "مسح السجل",
+                chapterPlaceholderTitle: "عنوان الفصل",
+                deleteChapter: "حذف الفصل",
+                insertImage: "🖼️ إدراج صورة",
+                emptyHistory: "لا توجد روايات في السجل بعد.",
+                openFromHistory: "فتح للتعديل",
+                fetchingMsg: "جاري الاتصال وجلب البيانات والصور من الرابط...",
+                successConfettiMsg: "تم تجهيز وتحميل الكتاب بنجاح! 🎉"
+            },
+            en: {
+                appName: "Luna-chan",
+                appTagline: "E-Book Creator",
+                historyBtn: "History",
+                universalBadge: "✨ Smart import from various websites & links in any language",
+                heroTitle: "Turn Your Favorite Story Into an Elegant E-Book",
+                heroDesc: "Paste a story link or share it directly from your mobile browser, edit details, and download.",
+                autoPasteBtn: "Auto-Paste",
+                fetchBtn: "Fetch Story",
+                loadSampleBtn: "Or try with a ready sample novel for instant preview & editing",
+                metadataTitle: "Book Metadata & Cover",
+                editHint: "All fields are directly editable",
+                changeCover: "Change Cover",
+                uploadCoverBtn: "Upload New Cover",
+                bookTitleLabel: "Story Title",
+                authorLabel: "Author Name",
+                descLabel: "Description / Synopsis",
+                deleteDescBtn: "🗑️ Delete Description",
+                chaptersTitle: "Chapters & Content",
+                addChapterBtn: "+ Add New Chapter",
+                previewBookBtn: "Preview Book",
+                exportTitle: "Ready to Download Your E-Book!",
+                exportDesc: "Choose your format (EPUB, PDF, FB2, HTML, MD, RTF, TXT). A copy saves to history.",
+                previewModalTitle: "Book Layout Preview",
+                closeBtn: "Close Preview",
+                historyModalTitle: "Previously Converted Stories",
+                clearHistoryBtn: "Clear History",
+                chapterPlaceholderTitle: "Chapter Title",
+                deleteChapter: "Delete",
+                insertImage: "🖼️ Insert Image",
+                emptyHistory: "No converted stories in history yet.",
+                openFromHistory: "Load & Edit",
+                fetchingMsg: "Connecting and extracting metadata, chapters & images...",
+                successConfettiMsg: "Your e-book is ready and downloaded! 🎉"
+            },
+            fr: {
+                appName: "Luna-chan",
+                appTagline: "Créateur d'E-Books",
+                historyBtn: "Historique",
+                universalBadge: "✨ Importation intelligente depuis divers sites et liens en toutes langues",
+                heroTitle: "Transformez votre histoire en un élégant livre numérique",
+                heroDesc: "Collez le lien ou partagez-le depuis votre navigateur mobile, modifiez et téléchargez.",
+                autoPasteBtn: "Coller",
+                fetchBtn: "Importer",
+                loadSampleBtn: "Ou essayez avec un roman modèle pour un aperçu immédiat",
+                metadataTitle: "Métadonnées et Couverture",
+                editHint: "Tous les champs sont modifiables",
+                changeCover: "Changer",
+                uploadCoverBtn: "Nouvelle couverture",
+                bookTitleLabel: "Titre de l'histoire",
+                authorLabel: "Nom de l'auteur",
+                descLabel: "Description / Résumé",
+                deleteDescBtn: "🗑️ Supprimer",
+                chaptersTitle: "Chapitres et Contenu",
+                addChapterBtn: "+ Ajouter un chapitre",
+                previewBookBtn: "Aperçu du livre",
+                exportTitle: "Prêt à télécharger votre E-Book !",
+                exportDesc: "Choisissez le format (EPUB, PDF, FB2, HTML, MD, RTF, TXT). Sauvegarde auto.",
+                previewModalTitle: "Aperçu de la mise en page",
+                closeBtn: "Fermer",
+                historyModalTitle: "Histoires converties précédemment",
+                clearHistoryBtn: "Vider",
+                chapterPlaceholderTitle: "Titre du chapitre",
+                deleteChapter: "Supprimer",
+                insertImage: "🖼️ Image",
+                emptyHistory: "Aucune histoire dans l'historique.",
+                openFromHistory: "Ouvrir",
+                fetchingMsg: "Extraction des données, chapitres et images en cours...",
+                successConfettiMsg: "Votre livre est prêt et téléchargé ! 🎉"
+            }
+        };
+
+        let currentLang = localStorage.getItem('luna_lang') || 'ar';
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            localStorage.setItem('luna_lang', lang);
+            document.documentElement.lang = lang;
+            document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+
+            // تحديث أزرار اللغة النشطة
+            ['ar', 'en', 'fr'].forEach(l => {
+                const btn = document.getElementById(`lang-${l}`);
+                if (l === lang) {
+                    btn.classList.add('bg-pinky-500', 'text-white');
+                } else {
+                    btn.classList.remove('bg-pinky-500', 'text-white');
+                }
+            });
+
+            // تطبيق النصوص المترجمة
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18n[lang][key]) el.textContent = i18n[lang][key];
+            });
+
+            if (currentNovel.chapters.length > 0) renderChapters();
+        }
+
+        /* ==========================================================================
+           3. الوضع الليلي والنهاري (Dark Mode)
+           ========================================================================== */
+        function toggleDarkMode() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('luna_dark', isDark ? '1' : '0');
+            document.getElementById('theme-toggle').textContent = isDark ? '☀️' : '🌙';
+        }
+
+        if (localStorage.getItem('luna_dark') === '1') {
+            document.documentElement.classList.add('dark');
+            document.getElementById('theme-toggle').textContent = '☀️';
+        }
+
+        /* ==========================================================================
+           4. حالة البيانات للرواية الحالية
+           ========================================================================== */
+        const defaultCoverSVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="%23ffdeeb"/><stop offset="100%" stop-color="%23f06595"/></linearGradient></defs><rect width="400" height="600" fill="url(%23g)"/><text x="50%" y="48%" font-size="64" text-anchor="middle" fill="white">🎀</text><text x="50%" y="56%" font-family="sans-serif" font-size="22" font-weight="bold" text-anchor="middle" fill="white">Luna-chan Edition</text></svg>`;
+
+        let currentNovel = {
+            id: null,
+            url: '',
+            title: '',
+            author: '',
+            description: '',
+            cover: defaultCoverSVG,
+            chapters: [] // { id, title, htmlContent }
+        };
+
+        /* ==========================================================================
+           5. اللصق التلقائي + استقبال الروابط من قائمة المشاركة في الهاتف
+           ========================================================================== */
+        async function autoPasteUrl() {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text) {
+                    const urlMatch = text.match(/https?:\/\/[^\s]+/);
+                    document.getElementById('novel-url').value = urlMatch ? urlMatch[0] : text.trim();
+                }
+            } catch (err) {
+                alert(currentLang === 'ar' ? 'يرجى السماح بالوصول للحافظة أو اللصق يدوياً.' : 'Please allow clipboard permission or paste manually.');
+            }
+        }
+
+        function checkIncomingShare() {
+            const params = new URLSearchParams(window.location.search);
+            const sharedUrl = params.get('url') || params.get('text') || params.get('title');
+            if (sharedUrl) {
+                const urlMatch = sharedUrl.match(/https?:\/\/[^\s]+/);
+                const cleanUrl = urlMatch ? urlMatch[0] : sharedUrl;
+                document.getElementById('novel-url').value = cleanUrl;
+                // تنظيف الرابط من شريط العنوان وبدء الجلب تلقائياً
+                window.history.replaceState({}, document.title, window.location.pathname);
+                fetchNovelFromUrl();
+            }
+        }
+
+        /* ==========================================================================
+           6. محرك جلب واستخراج البيانات والصور من أي رابط (Multi-Proxy DOM Parser)
+           ========================================================================== */
+        async function fetchWithCorsProxy(targetUrl) {
+            const proxies = [
+                url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+                url => `https://corsproxy.io/?${encodeURIComponent(url)}`
+            ];
+
+            for (const proxyFn of proxies) {
+                try {
+                    const res = await fetch(proxyFn(targetUrl));
+                    if (!res.ok) continue;
+                    const contentType = res.headers.get('content-type') || '';
+                    if (contentType.includes('application/json')) {
+                        const data = await res.json();
+                        if (data.contents) return data.contents;
+                    } else {
+                        return await res.text();
+                    }
+                } catch (e) { /* تجربة البروكسي التالي */ }
+            }
+            throw new Error('CORS_FETCH_FAILED');
+        }
+
+        function resolveUrl(base, relative) {
+            try { return new URL(relative, base).href; } catch { return relative; }
+        }
+
+        async function fetchNovelFromUrl() {
+            const urlInput = document.getElementById('novel-url').value.trim();
+            if (!urlInput) return;
+
+            const statusBar = document.getElementById('status-bar');
+            const statusText = document.getElementById('status-text');
+            const statusProgress = document.getElementById('status-progress');
+
+            statusBar.classList.remove('hidden');
+            statusText.textContent = i18n[currentLang].fetchingMsg;
+            statusProgress.style.width = '35%';
+
+            try {
+                const htmlString = await fetchWithCorsProxy(urlInput);
+                statusProgress.style.width = '75%';
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlString, 'text/html');
+
+                // 1. استخراج العنوان الذكي (OpenGraph / H1 / Title)
+                const title = doc.querySelector('meta[property="og:title"]')?.content ||
+                              doc.querySelector('h1')?.textContent?.trim() ||
+                              doc.title || 'Untitled Story';
+
+                // 2. استخراج اسم الكاتب
+                const author = doc.querySelector('meta[name="author"]')?.content ||
+                               doc.querySelector('[rel="author"], .author, .byline, [class*="author"]')?.textContent?.trim() ||
+                               'Unknown Author';
+
+                // 3. استخراج النبذة / الوصف
+                const description = doc.querySelector('meta[property="og:description"]')?.content ||
+                                    doc.querySelector('meta[name="description"]')?.content ||
+                                    doc.querySelector('.summary, .description, .synopsis, [class*="desc"]')?.textContent?.trim() || '';
+
+                // 4. استخراج صورة الغلاف وتحويل روابطها لمسارات مطلقة
+                let coverRaw = doc.querySelector('meta[property="og:image"]')?.content ||
+                               doc.querySelector('.cover img, [class*="cover"] img, img')?.getAttribute('src');
+                const cover = coverRaw ? resolveUrl(urlInput, coverRaw) : defaultCoverSVG;
+
+                // 5. استخراج محتوى الفصول والصور الداخلية
+                const chapters = extractChaptersFromDoc(doc, urlInput, title);
+
+                currentNovel = {
+                    id: Date.now().toString(),
+                    url: urlInput,
+                    title: title.trim(),
+                    author: author.trim(),
+                    description: description.trim(),
+                    cover,
+                    chapters
+                };
+
+                statusProgress.style.width = '100%';
+                setTimeout(() => {
+                    statusBar.classList.add('hidden');
+                    populateWorkspace();
+                }, 400);
+
+            } catch (error) {
+                statusBar.classList.add('hidden');
+                // في حال حظر الموقع للوصول المباشر، نفتح مساحة العمل مع بيانات أولية ليتمكن المستخدم من اللصق/التعديل
+                alert(currentLang === 'ar' 
+                    ? 'تعذر سحب الصفحة تلقائياً بسبب قيود الحماية في المصدر، تم فتح محرر الكتاب لإدخال المحتوى أو تعديله يدوياً.' 
+                    : 'Could not auto-fetch due to source restrictions. Opened editor for manual input.');
+                loadSampleNovel(urlInput);
+            }
+        }
+
+        function extractChaptersFromDoc(doc, baseUrl, fallbackTitle) {
+            // إزالة العناصر غير المرغوبة (قوائم، إعلانات، سكربتات)
+            doc.querySelectorAll('script, style, nav, header, footer, iframe, .ads, .comments').forEach(el => el.remove());
+
+            // البحث عن حاويات الفصول أو المحتوى الرئيسي
+            const chapterNodes = doc.querySelectorAll('.chapter, [class*="chapter-content"], article, .entry-content, #chapter-content, .story-text');
+            const extracted = [];
+
+            if (chapterNodes.length > 0) {
+                chapterNodes.forEach((node, idx) => {
+                    // تحويل جميع الصور داخل الفصل إلى مسارات كاملة والإبقاء عليها
+                    node.querySelectorAll('img').forEach(img => {
+                        const src = img.getAttribute('data-src') || img.getAttribute('src');
+                        if (src) {
+                            img.setAttribute('src', resolveUrl(baseUrl, src));
+                            img.removeAttribute('srcset');
+                        }
+                    });
+
+                    const chTitleEl = node.querySelector('h1, h2, h3, .chapter-title');
+                    const chTitle = chTitleEl ? chTitleEl.textContent.trim() : `${fallbackTitle} - ${idx + 1}`;
+                    if (chTitleEl) chTitleEl.remove();
+
+                    // تنظيف الوسوم مع الحفاظ على الفقرات والصور
+                    const cleanHtml = sanitizeChapterHtml(node);
+                    if (cleanHtml.trim().length > 20) {
+                        extracted.push({
+                            id: `ch_${Date.now()}_${idx}`,
+                            title: chTitle,
+                            htmlContent: cleanHtml
+                        });
+                    }
+                });
+            }
+
+            // إذا لم يُعثر على حاوية محددة، نجمع الفقرات والصور من body
+            if (extracted.length === 0) {
+                const bodyClone = doc.body;
+                bodyClone.querySelectorAll('img').forEach(img => {
+                    const src = img.getAttribute('data-src') || img.getAttribute('src');
+                    if (src) img.setAttribute('src', resolveUrl(baseUrl, src));
+                });
+                extracted.push({
+                    id: `ch_${Date.now()}_0`,
+                    title: fallbackTitle,
+                    htmlContent: sanitizeChapterHtml(bodyClone)
+                });
+            }
+
+            return extracted;
+        }
+
+        function sanitizeChapterHtml(container) {
+            let output = '';
+            container.querySelectorAll('p, img, h2, h3, blockquote').forEach(el => {
+                if (el.tagName === 'IMG') {
+                    const src = el.getAttribute('src');
+                    if (src && !src.includes('avatar') && !src.includes('icon')) {
+                        output += `<p><img src="${src}" alt="Illustration"></p>\n`;
+                    }
+                } else {
+                    const text = el.innerHTML.trim();
+                    if (text) output += `<p>${text}</p>\n`;
+                }
+            });
+            return output || `<p>${container.textContent.trim().replace(/\n+/g, '</p><p>')}</p>`;
+        }
+
+        function loadSampleNovel(customUrl = '') {
+            currentNovel = {
+                id: Date.now().toString(),
+                url: customUrl || 'https://example.com/story/rose-kingdom',
+                title: currentLang === 'ar' ? 'همسات القصر الوردي' : (currentLang === 'fr' ? 'Les Murmures du Palais Rose' : 'Whispers of the Pink Palace'),
+                author: currentLang === 'ar' ? 'ليلى الكاتبة' : 'Layla Writer',
+                description: currentLang === 'ar' 
+                    ? 'رواية رومانسية خيالية تدور أحداثها في مملكة تكسوها أزهار الكرز، حيث تكتشف البطلة كتاباً قديماً يغير مجرى حياتها.'
+                    : 'A fantasy romance set in a kingdom covered in cherry blossoms, where a young heroine discovers an ancient book.',
+                cover: defaultCoverSVG,
+                chapters: [
+                    {
+                        id: 'ch_1',
+                        title: currentLang === 'ar' ? 'الفصل الأول: البداية تحت المطر' : 'Chapter 1: Beginning Under the Rain',
+                        htmlContent: `<p>${currentLang === 'ar' ? 'تساقطت بتلات الكرز بهدوء على شرفة القصر، بينما كانت تحمل الرسالة المختومة بالشمع الذهبي...' : 'Cherry petals fell softly onto the palace balcony as she held the golden-sealed letter...'}</p>`
+                    },
+                    {
+                        id: 'ch_2',
+                        title: currentLang === 'ar' ? 'الفصل الثاني: السر المخفي' : 'Chapter 2: The Hidden Secret',
+                        htmlContent: `<p>${currentLang === 'ar' ? 'في المكتبة الملكية القديمة، لم يكن هناك أحد سواها وصوت تقليب الصفحات.' : 'Inside the old royal library, there was no one else except the sound of turning pages.'}</p>`
+                    }
+                ]
+            };
+            populateWorkspace();
+        }
+
+        /* ==========================================================================
+           7. عرض وتحديث مساحة التعديل والمعاينة
+           ========================================================================== */
+        function populateWorkspace() {
+            document.getElementById('workspace').classList.remove('hidden');
+            document.getElementById('edit-title').value = currentNovel.title;
+            document.getElementById('edit-author').value = currentNovel.author;
+            document.getElementById('edit-desc').value = currentNovel.description;
+            document.getElementById('cover-preview').src = currentNovel.cover;
+
+            // ربط التعديلات الفورية بالحالة
+            document.getElementById('edit-title').oninput = e => currentNovel.title = e.target.value;
+            document.getElementById('edit-author').oninput = e => currentNovel.author = e.target.value;
+            document.getElementById('edit-desc').oninput = e => currentNovel.description = e.target.value;
+
+            renderChapters();
+            document.getElementById('workspace').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function handleCoverUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                currentNovel.cover = e.target.result;
+                document.getElementById('cover-preview').src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearDescription() {
+            currentNovel.description = '';
+            document.getElementById('edit-desc').value = '';
+        }
+
+        function renderChapters() {
+            const list = document.getElementById('chapters-list');
+            document.getElementById('chapters-badge').textContent = currentNovel.chapters.length;
+            list.innerHTML = '';
+
+            currentNovel.chapters.forEach((ch, index) => {
+                const card = document.createElement('div');
+                card.className = 'rounded-2xl border border-pinky-200 dark:border-darkborder bg-pinky-50/40 dark:bg-darkbg p-4 transition';
+                card.innerHTML = `
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                        <div class="flex items-center gap-2 flex-1 min-w-[200px]">
+                            <span class="w-7 h-7 rounded-lg bg-pinky-500 text-white text-xs font-bold flex items-center justify-center shrink-0">${index + 1}</span>
+                            <input type="text" value="${escapeHtml(ch.title)}" 
+                                onchange="updateChapterTitle(${index}, this.value)"
+                                placeholder="${i18n[currentLang].chapterPlaceholderTitle}"
+                                class="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-darkcard border border-pinky-200 dark:border-darkborder text-sm font-bold focus:outline-none focus:border-pinky-500">
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <label class="cursor-pointer px-2.5 py-1.5 rounded-xl bg-pinky-100 hover:bg-pinky-200 dark:bg-darkcard text-pinky-700 dark:text-pinky-300 text-xs font-bold transition">
+                                ${i18n[currentLang].insertImage}
+                                <input type="file" accept="image/*" class="hidden" onchange="insertImageIntoChapter(${index}, event)">
+                            </label>
+                            <button onclick="deleteChapter(${index})" class="px-2.5 py-1.5 rounded-xl bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 text-xs font-bold transition">
+                                🗑️ ${i18n[currentLang].deleteChapter}
+                            </button>
+                        </div>
+                    </div>
+                    <div contenteditable="true" 
+                         oninput="updateChapterContent(${index}, this.innerHTML)"
+                         class="chapter-editor w-full min-h-[110px] max-h-[260px] overflow-y-auto p-3.5 rounded-xl bg-white dark:bg-darkcard border border-pinky-100 dark:border-darkborder text-sm leading-relaxed focus:outline-none focus:border-pinky-400">${ch.htmlContent}</div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        function updateChapterTitle(index, newTitle) {
+            currentNovel.chapters[index].title = newTitle;
+        }
+
+        function updateChapterContent(index, newHtml) {
+            currentNovel.chapters[index].htmlContent = newHtml;
+        }
+
+        function deleteChapter(index) {
+            currentNovel.chapters.splice(index, 1);
+            renderChapters();
+        }
+
+        function addNewChapter() {
+            const num = currentNovel.chapters.length + 1;
+            currentNovel.chapters.push({
+                id: `ch_${Date.now()}`,
+                title: currentLang === 'ar' ? `الفصل ${num}` : `Chapter ${num}`,
+                htmlContent: '<p>...</p>'
+            });
+            renderChapters();
+        }
+
+        function insertImageIntoChapter(index, event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                currentNovel.chapters[index].htmlContent += `<p><img src="${e.target.result}" alt="Chapter Image"></p>`;
+                renderChapters();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        /* ==========================================================================
+           8. شاشة المعاينة الكاملة (Preview Modal)
+           ========================================================================== */
+        function openPreviewModal() {
+            const container = document.getElementById('preview-content');
+            const dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+            
+            let chaptersHtml = currentNovel.chapters.map(ch => `
+                <article class="border-t border-pinky-100 dark:border-darkborder pt-6">
+                    <h2 class="text-xl font-extrabold text-pinky-600 dark:text-pinky-400 mb-4">${escapeHtml(ch.title)}</h2>
+                    <div class="space-y-3 text-base leading-8 chapter-editor">${ch.htmlContent}</div>
+                </article>
+            `).join('');
+
+            container.innerHTML = `
+                <div dir="${dir}" class="max-w-xl mx-auto space-y-6">
+                    <div class="text-center space-y-3">
+                        <img src="${currentNovel.cover}" class="w-40 h-56 object-cover rounded-2xl mx-auto shadow-lg border-2 border-pinky-200">
+                        <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white">${escapeHtml(currentNovel.title)}</h1>
+                        <p class="text-sm font-bold text-pinky-500">${escapeHtml(currentNovel.author)}</p>
+                        ${currentNovel.description ? `<p class="text-sm text-gray-600 dark:text-gray-300 bg-pinky-50 dark:bg-darkbg p-4 rounded-2xl">${escapeHtml(currentNovel.description)}</p>` : ''}
+                    </div>
+                    ${chaptersHtml}
+                </div>
+            `;
+            document.getElementById('preview-modal').classList.remove('hidden');
+        }
+
+        function closePreviewModal() {
+            document.getElementById('preview-modal').classList.add('hidden');
+        }
+
+        /* ==========================================================================
+           9. محرك التصدير متعدد الصيغ (EPUB, PDF, FB2, HTML, MD, RTF, TXT) + Confetti
+           ========================================================================== */
+        async function exportBook(format) {
+            saveToHistory(currentNovel);
+            const safeFilename = (currentNovel.title || 'LunaChan_Book').replace(/[\\/:*?"<>|]/g, '_');
+            const dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+
+            if (format === 'txt') {
+                let txt = `${currentNovel.title}\n${currentNovel.author}\n`;
+                if (currentNovel.description) txt += `\n${currentNovel.description}\n`;
+                txt += `\n${'='.repeat(40)}\n\n`;
+
+                currentNovel.chapters.forEach(ch => {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = ch.htmlContent;
+                    txt += `### ${ch.title} ###\n\n${tempDiv.innerText.trim()}\n\n${'-'.repeat(30)}\n\n`;
+                });
+
+                downloadBlob(new Blob([txt], { type: 'text/plain;charset=utf-8' }), `${safeFilename}.txt`);
+                triggerConfetti();
+            }
+            else if (format === 'md') {
+                let md = `# ${currentNovel.title}\n\n**${currentNovel.author}**\n\n`;
+                if (currentNovel.description) md += `> ${currentNovel.description.replace(/\n+/g, '\n> ')}\n\n---\n\n`;
+
+                currentNovel.chapters.forEach(ch => {
+                    md += `## ${ch.title}\n\n`;
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = ch.htmlContent;
+                    tempDiv.querySelectorAll('p, h2, h3, blockquote').forEach(el => {
+                        const img = el.querySelector('img');
+                        if (img) {
+                            md += `![${img.alt || 'Image'}](${img.src})\n\n`;
+                        } else {
+                            const clean = el.textContent.trim();
+                            if (clean) md += `${clean}\n\n`;
+                        }
+                    });
+                    md += `---\n\n`;
+                });
+
+                downloadBlob(new Blob([md], { type: 'text/markdown;charset=utf-8' }), `${safeFilename}.md`);
+                triggerConfetti();
+            }
+            else if (format === 'html') {
+                const chaptersBlock = currentNovel.chapters.map(ch => `
+                    <section class="chapter">
+                        <h2>${escapeHtml(ch.title)}</h2>
+                        <div class="content">${ch.htmlContent}</div>
+                    </section>
+                `).join('\n');
+
+                const htmlDoc = `<!DOCTYPE html>
+<html lang="${currentLang}" dir="${dir}">
+<head>
+<meta charset="UTF-8">
+<title>${escapeHtml(currentNovel.title)}</title>
+<style>
+body{font-family:'Cairo',sans-serif;max-width:780px;margin:0 auto;padding:2rem;background:#fff0f6;color:#222;line-height:1.9;}
+.book-header{text-align:center;margin-bottom:3rem;padding-bottom:2rem;border-bottom:2px solid #fcc2d7;}
+.book-header img{max-width:220px;border-radius:14px;box-shadow:0 8px 20px rgba(240,101,149,0.2);}
+h1{color:#c2255c;}h2{color:#d6336c;margin-top:2rem;}
+.desc{background:#fff;padding:1rem 1.5rem;border-radius:12px;text-align:justify;}
+.chapter{background:#fff;padding:1.5rem 2rem;border-radius:16px;margin-bottom:2rem;box-shadow:0 2px 10px rgba(0,0,0,0.04);}
+img{max-width:100%;height:auto;border-radius:10px;display:block;margin:1rem auto;}
+</style>
+</head>
+<body>
+<header class="book-header">
+  <img src="${currentNovel.cover}" alt="Cover">
+  <h1>${escapeHtml(currentNovel.title)}</h1>
+  <h3>${escapeHtml(currentNovel.author)}</h3>
+  ${currentNovel.description ? `<div class="desc"><p>${escapeHtml(currentNovel.description)}</p></div>` : ''}
+</header>
+${chaptersBlock}
+</body>
+</html>`;
+
+                downloadBlob(new Blob([htmlDoc], { type: 'text/html;charset=utf-8' }), `${safeFilename}.html`);
+                triggerConfetti();
+            }
+            else if (format === 'fb2') {
+                const firstName = (currentNovel.author || 'Author').split(' ')[0];
+                const lastName = (currentNovel.author || 'Author').split(' ').slice(1).join(' ') || '';
+
+                const sectionsXml = currentNovel.chapters.map(ch => {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = ch.htmlContent;
+                    let paras = '';
+                    tempDiv.querySelectorAll('p, h2, h3, blockquote').forEach(el => {
+                        const t = el.textContent.trim();
+                        if (t) paras += `      <p>${escapeXml(t)}</p>\n`;
+                    });
+                    if (!paras) paras = `      <p>${escapeXml(tempDiv.textContent.trim())}</p>\n`;
+                    return `    <section>\n      <title><p>${escapeXml(ch.title)}</p></title>\n${paras}    </section>`;
+                }).join('\n');
+
+                const fb2Xml = `<?xml version="1.0" encoding="UTF-8"?>
+<FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>${escapeXml(currentNovel.title)}</book-title>
+      <author><first-name>${escapeXml(firstName)}</first-name><last-name>${escapeXml(lastName)}</last-name></author>
+      <annotation><p>${escapeXml(currentNovel.description || '')}</p></annotation>
+      <lang>${currentLang}</lang>
+    </title-info>
+  </description>
+  <body>
+${sectionsXml}
+  </body>
+</FictionBook>`;
+
+                downloadBlob(new Blob([fb2Xml], { type: 'application/x-fictionbook+xml;charset=utf-8' }), `${safeFilename}.fb2`);
+                triggerConfetti();
+            }
+            else if (format === 'rtf') {
+                const toRtfText = str => {
+                    let out = '';
+                    for (let i = 0; i < str.length; i++) {
+                        const code = str.charCodeAt(i);
+                        if (code === 10) out += '\\par\n';
+                        else if (code === 13) continue;
+                        else if (code < 128) out += str[i];
+                        else out += `\\u${code > 32767 ? code - 65536 : code}?`;
+                    }
+                    return out;
+                };
+
+                let bodyRtf = `{\\b\\fs36 ${toRtfText(currentNovel.title)}}\\par\n{\\fs26 ${toRtfText(currentNovel.author)}}\\par\\par\n`;
+                if (currentNovel.description) {
+                    bodyRtf += `{\\i ${toRtfText(currentNovel.description)}}\\par\\par\n`;
+                }
+                currentNovel.chapters.forEach(ch => {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = ch.htmlContent;
+                    bodyRtf += `{\\b\\fs28 ${toRtfText(ch.title)}}\\par\n${toRtfText(tempDiv.innerText.trim())}\\par\\par\n`;
+                });
+
+                const rtfDoc = `{\\rtf1\\ansi\\ansicpg1252\\deff0 ${dir === 'rtl' ? '\\rtlpar' : '\\ltrpar'}\n${bodyRtf}}`;
+                downloadBlob(new Blob([rtfDoc], { type: 'application/rtf' }), `${safeFilename}.rtf`);
+                triggerConfetti();
+            }
+            else if (format === 'pdf') {
+                const renderBox = document.getElementById('pdf-render-container');
+                renderBox.classList.remove('hidden');
+
+                renderBox.innerHTML = `
+                    <div dir="${dir}" style="font-family: 'Cairo', sans-serif; padding: 25px; color: #222; line-height: 1.8;">
+                        <div style="text-align: center; margin-bottom: 30px; page-break-after: always;">
+                            <img src="${currentNovel.cover}" style="width: 220px; height: 320px; object-fit: cover; border-radius: 14px; margin: 0 auto 20px;">
+                            <h1 style="font-size: 26px; color: #d6336c; margin-bottom: 8px;">${escapeHtml(currentNovel.title)}</h1>
+                            <h3 style="font-size: 16px; color: #666; margin-bottom: 20px;">${escapeHtml(currentNovel.author)}</h3>
+                            ${currentNovel.description ? `<p style="font-size: 14px; background: #fff0f6; padding: 15px; border-radius: 12px; text-align: justify;">${escapeHtml(currentNovel.description)}</p>` : ''}
+                        </div>
+                        ${currentNovel.chapters.map(ch => `
+                            <div style="page-break-before: always; margin-bottom: 25px;">
+                                <h2 style="font-size: 20px; color: #d6336c; border-bottom: 2px solid #fcc2d7; padding-bottom: 6px; margin-bottom: 15px;">${escapeHtml(ch.title)}</h2>
+                                <div style="font-size: 14px;">${ch.htmlContent}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+
+                const opt = {
+                    margin: 10,
+                    filename: `${safeFilename}.pdf`,
+                    image: { type: 'jpeg', quality: 0.95 },
+                    html2canvas: { scale: 2, useCORS: true },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+
+                await html2pdf().set(opt).from(renderBox).save();
+                renderBox.classList.add('hidden');
+                renderBox.innerHTML = '';
+                triggerConfetti();
+            } 
+            else if (format === 'epub') {
+                await generateEpubFile(safeFilename);
+                triggerConfetti();
+            }
+        }
+
+        async function generateEpubFile(filename) {
+            const zip = new JSZip();
+            const bookId = `urn:uuid:${Date.now()}`;
+            const dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+
+            // 1. mimetype (يجب أن يكون أول ملف وبدون ضغط)
+            zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
+
+            // 2. META-INF/container.xml
+            zip.folder('META-INF').file('container.xml', `<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>`);
+
+            const oebps = zip.folder('OEBPS');
+            const imagesFolder = oebps.folder('images');
+            let manifestItems = '';
+            let spineItems = '';
+            let navPoints = '';
+
+            // معالجة صورة الغلاف
+            let hasCover = false;
+            try {
+                const coverBlob = await imageToBlob(currentNovel.cover);
+                if (coverBlob) {
+                    imagesFolder.file('cover.jpg', coverBlob);
+                    manifestItems += `<item id="cover-img" href="images/cover.jpg" media-type="image/jpeg" properties="cover-image"/>\n`;
+                    hasCover = true;
+                }
+            } catch (e) {}
+
+            // صفحة الغلاف والنبذة
+            const introXhtml = `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" dir="${dir}">
+<head><title>${escapeHtml(currentNovel.title)}</title>
+<style>body{font-family:sans-serif;text-align:center;padding:5%;}img{max-width:70%;border-radius:10px;}h1{color:#d6336c;}.desc{text-align:justify;margin-top:20px;line-height:1.6;}</style>
+</head>
+<body>
+${hasCover ? '<img src="images/cover.jpg" alt="Cover"/>' : ''}
+<h1>${escapeHtml(currentNovel.title)}</h1>
+<h3>${escapeHtml(currentNovel.author)}</h3>
+${currentNovel.description ? `<div class="desc"><p>${escapeHtml(currentNovel.description)}</p></div>` : ''}
+</body></html>`;
+            oebps.file('intro.xhtml', introXhtml);
+            manifestItems += `<item id="intro" href="intro.xhtml" media-type="application/xhtml+xml"/>\n`;
+            spineItems += `<itemref idref="intro"/>\n`;
+
+            // معالجة الفصول والصور المضمنة داخل كل فصل
+            let imgCounter = 1;
+            for (let i = 0; i < currentNovel.chapters.length; i++) {
+                const ch = currentNovel.chapters[i];
+                const chFile = `chapter_${i + 1}.xhtml`;
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = ch.htmlContent;
+
+                const imgs = tempDiv.querySelectorAll('img');
+                for (const img of imgs) {
+                    const src = img.getAttribute('src');
+                    try {
+                        const blob = await imageToBlob(src);
+                        if (blob) {
+                            const imgName = `img_${imgCounter++}.jpg`;
+                            imagesFolder.file(imgName, blob);
+                            manifestItems += `<item id="${imgName}" href="images/${imgName}" media-type="image/jpeg"/>\n`;
+                            img.setAttribute('src', `images/${imgName}`);
+                        } else {
+                            img.remove();
+                        }
+                    } catch {
+                        img.remove();
+                    }
+                }
+
+                // تحويل HTML إلى XHTML صالح لـ EPUB
+                const serializedBody = new XMLSerializer().serializeToString(tempDiv)
+                    .replace(/^<div[^>]*>/, '').replace(/<\/div>$/, '');
+
+                const xhtml = `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" dir="${dir}">
+<head><title>${escapeHtml(ch.title)}</title>
+<style>body{font-family:sans-serif;line-height:1.8;padding:4%;}h2{color:#d6336c;}img{max-width:100%;height:auto;display:block;margin:10px auto;}</style>
+</head>
+<body>
+<h2>${escapeHtml(ch.title)}</h2>
+${serializedBody}
+</body></html>`;
+
+                oebps.file(chFile, xhtml);
+                manifestItems += `<item id="ch_${i + 1}" href="${chFile}" media-type="application/xhtml+xml"/>\n`;
+                spineItems += `<itemref idref="ch_${i + 1}"/>\n`;
+                navPoints += `<navPoint id="nav_${i + 1}" playOrder="${i + 1}"><navLabel><text>${escapeHtml(ch.title)}</text></navLabel><content src="${chFile}"/></navPoint>\n`;
+            }
+
+            // toc.ncx
+            oebps.file('toc.ncx', `<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+<head><meta name="dtb:uid" content="${bookId}"/></head>
+<docTitle><text>${escapeHtml(currentNovel.title)}</text></docTitle>
+<navMap>${navPoints}</navMap>
+</ncx>`);
+            manifestItems += `<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>\n`;
+
+            // content.opf
+            oebps.file('content.opf', `<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookId" version="2.0">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <dc:title>${escapeHtml(currentNovel.title)}</dc:title>
+  <dc:creator>${escapeHtml(currentNovel.author)}</dc:creator>
+  <dc:language>${currentLang}</dc:language>
+  <dc:identifier id="BookId">${bookId}</dc:identifier>
+</metadata>
+<manifest>${manifestItems}</manifest>
+<spine toc="ncx">${spineItems}</spine>
+</package>`);
+
+            const epubBlob = await zip.generateAsync({ type: 'application/epub+zip' });
+            downloadBlob(epubBlob, `${filename}.epub`);
+        }
+
+        async function imageToBlob(src) {
+            if (!src) return null;
+            if (src.startsWith('data:')) {
+                const res = await fetch(src);
+                return await res.blob();
+            }
+            try {
+                const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(src)}`);
+                if (res.ok) return await res.blob();
+            } catch {}
+            return null;
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+        }
+
+        function triggerConfetti() {
+            confetti({
+                particleCount: 90,
+                spread: 75,
+                origin: { y: 0.65 },
+                colors: ['#f06595', '#faa2c1', '#ffdeeb', '#ffd43b', '#ffffff']
+            });
+        }
+
+        /* ==========================================================================
+           10. إدارة السجل المحلي (LocalStorage History)
+           ========================================================================== */
+        function getHistory() {
+            try {
+                return JSON.parse(localStorage.getItem('luna_history') || '[]');
+            } catch { return []; }
+        }
+
+        function saveToHistory(novel) {
+            let history = getHistory();
+            const entry = {
+                ...novel,
+                savedAt: new Date().toLocaleDateString()
+            };
+            // تحديث إذا كان موجوداً مسبقاً أو إضافته في المقدمة
+            history = history.filter(item => item.title !== novel.title);
+            history.unshift(entry);
+            // الاحتفاظ بآخر 15 رواية لتجنب امتلاء التخزين المحلي
+            if (history.length > 15) history.pop();
+            try {
+                localStorage.setItem('luna_history', JSON.stringify(history));
+            } catch (e) {
+                // في حال كبر حجم الصور، نحفظ بدون الصور المضمنة الثقيلة
+                entry.cover = defaultCoverSVG;
+                localStorage.setItem('luna_history', JSON.stringify(history));
+            }
+            updateHistoryBadge();
+        }
+
+        function updateHistoryBadge() {
+            document.getElementById('history-count').textContent = getHistory().length;
+        }
+
+        function toggleHistoryModal() {
+            const modal = document.getElementById('history-modal');
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) renderHistoryList();
+        }
+
+        function renderHistoryList() {
+            const list = document.getElementById('history-list');
+            const history = getHistory();
+
+            if (history.length === 0) {
+                list.innerHTML = `<p class="text-center text-gray-400 py-10 text-sm">${i18n[currentLang].emptyHistory}</p>`;
+                return;
+            }
+
+            list.innerHTML = history.map((item, idx) => `
+                <div class="flex items-center gap-3 p-3 rounded-2xl bg-pinky-50/70 dark:bg-darkbg border border-pinky-100 dark:border-darkborder">
+                    <img src="${item.cover || defaultCoverSVG}" class="w-12 h-16 object-cover rounded-xl shrink-0">
+                    <div class="flex-1 min-w-0">
+                        <h4 class="font-bold text-sm truncate text-gray-800 dark:text-white">${escapeHtml(item.title)}</h4>
+                        <p class="text-xs text-pinky-500 truncate">${escapeHtml(item.author)} • ${item.chapters?.length || 0} ch</p>
+                        <p class="text-[11px] text-gray-400">${item.savedAt || ''}</p>
+                    </div>
+                    <button onclick="loadFromHistory(${idx})" class="px-3 py-1.5 rounded-xl bg-pinky-500 hover:bg-pinky-600 text-white text-xs font-bold shrink-0">
+                        ${i18n[currentLang].openFromHistory}
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function loadFromHistory(index) {
+            const history = getHistory();
+            if (history[index]) {
+                currentNovel = JSON.parse(JSON.stringify(history[index]));
+                toggleHistoryModal();
+                populateWorkspace();
+            }
+        }
+
+        function clearHistory() {
+            localStorage.removeItem('luna_history');
+            updateHistoryBadge();
+            renderHistoryList();
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>"']/g, m => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": ''' }[m]));
+        }
+
+        function escapeXml(str) {
+            if (!str) return '';
+            return str.replace(/[<>&'"]/g, c => {
+                switch (c) {
+                    case '<': return '<';
+                    case '>': return '>';
+                    case '&': return '&';
+                    case '\'': return ''';
+                    case '"': return '"';
+                }
+            });
+        }
+
+        // التهيئة عند التشغيل
+        setLanguage(currentLang);
+        updateHistoryBadge();
+        checkIncomingShare();
+    </script>
+</body>
+</html>

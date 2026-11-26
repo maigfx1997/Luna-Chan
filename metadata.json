@@ -1,0 +1,6 @@
+{
+  "name": "Luna-chan",
+  "description": "Convert web novels into elegant e-books (EPUB, PDF, FB2, HTML, MD, RTF, TXT) with smart link import, full cover and chapter editing, preview, history, and Arabic/English/French support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
